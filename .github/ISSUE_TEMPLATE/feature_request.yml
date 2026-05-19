@@ -1,0 +1,44 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do that the app doesn't support today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like it to work? Be as specific as you want.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you've tried or other approaches you thought about.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - Small (single file, no new deps)
+        - Medium (a few files, possibly a new dep)
+        - Large (new feature area or significant refactor)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: local-first
+    attributes:
+      label: Local-first check
+      options:
+        - label: This feature works entirely offline — no data leaves the user's machine
+          required: true
