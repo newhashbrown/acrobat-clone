@@ -1,0 +1,13 @@
+# Normalize line endings across platforms
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Treat these as binary so git doesn't try to diff them
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.wasm binary

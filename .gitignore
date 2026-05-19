@@ -1,0 +1,17 @@
+node_modules
+out
+dist
+release
+.DS_Store
+*.log
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Vendored at install time by scripts/copy-vendor-assets.cjs
+src/renderer/public/pdf.worker.min.mjs
+src/renderer/public/tesseract/
