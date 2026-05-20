@@ -51,6 +51,12 @@ export interface Redaction {
   height: number
 }
 
+// Form value shapes:
+//   - text / dropdown / combo  → string
+//   - checkbox                 → boolean
+//   - radio group              → string (the selected option's export value)
+export type FormValue = string | boolean
+
 export interface DocMetadata {
   title?: string
   author?: string
@@ -81,6 +87,12 @@ interface ViewerState {
   redactions: Redaction[]
   redactMode: boolean
   ocrResults: Record<number, OcrPageResult>
+  // AcroForm field values, keyed by field name (not id) so widgets that share
+  // a name — radio groups, repeated text fields — stay in sync across pages.
+  // Held outside undo/redo on purpose: form inputs handle their own typing
+  // history via the browser, same precedent as ocrResults.
+  formValues: Record<string, FormValue>
+  formFieldCount: number
   searchQuery: string
   // Compare mode: a second PDF loaded for side-by-side diff
   compareDoc: PDFDocumentProxy | null
@@ -126,6 +138,9 @@ interface ViewerState {
   clearRedactions: () => void
   setOcrResult: (r: OcrPageResult) => void
   clearOcrResults: () => void
+  setFormValue: (name: string, value: FormValue) => void
+  setFormFieldCount: (n: number) => void
+  clearFormValues: () => void
   setCompareDoc: (doc: PDFDocumentProxy | null, fileName: string | null) => void
   setCompareMode: (on: boolean) => void
   enterOrganize: () => void
@@ -154,6 +169,8 @@ export const useViewer = create<ViewerState>((set, get) => ({
   redactions: [],
   redactMode: false,
   ocrResults: {},
+  formValues: {},
+  formFieldCount: 0,
   searchQuery: '',
   compareDoc: null,
   compareFileName: null,
@@ -179,6 +196,8 @@ export const useViewer = create<ViewerState>((set, get) => ({
       redactions: [],
       redactMode: false,
       ocrResults: {},
+      formValues: {},
+      formFieldCount: 0,
       compareDoc: null,
       compareFileName: null,
       compareMode: false,
@@ -203,6 +222,8 @@ export const useViewer = create<ViewerState>((set, get) => ({
       redactions: [],
       redactMode: false,
       ocrResults: {},
+      formValues: {},
+      formFieldCount: 0,
       compareDoc: null,
       compareFileName: null,
       compareMode: false,
@@ -277,6 +298,10 @@ export const useViewer = create<ViewerState>((set, get) => ({
   setOcrResult: (r) =>
     set({ ocrResults: { ...get().ocrResults, [r.pageNumber]: r } }),
   clearOcrResults: () => set({ ocrResults: {} }),
+  setFormValue: (name, value) =>
+    set({ formValues: { ...get().formValues, [name]: value } }),
+  setFormFieldCount: (n) => set({ formFieldCount: n }),
+  clearFormValues: () => set({ formValues: {} }),
   setCompareDoc: (doc, fileName) => set({ compareDoc: doc, compareFileName: fileName }),
   setCompareMode: (on) => set({ compareMode: on }),
   enterOrganize: () => {

@@ -341,6 +341,94 @@ input[type='search']:focus {
   line-height: 1;
 }
 
+/* ---------- AcroForm field overlay ---------- */
+/* Container is pointer-passthrough so empty space between fields still routes
+   clicks to the page (for signature placement / redaction drag). The fields
+   themselves opt back in to pointer events. */
+.page-wrap .form-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* While signature placement or redact mode is active, dim the overlay and
+   block all interaction so the active mode's drag/click owns the page. */
+.page-wrap .form-overlay.inactive {
+  opacity: 0.5;
+}
+.page-wrap .form-overlay.inactive .form-field {
+  pointer-events: none;
+}
+
+.page-wrap .form-field {
+  position: absolute;
+  pointer-events: auto;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 14px;
+  color: #111;
+  background: rgba(120, 170, 255, 0.10);
+  border: 1px solid rgba(120, 170, 255, 0.45);
+  border-radius: 2px;
+  padding: 1px 3px;
+  outline: none;
+  transition: background 80ms ease, border-color 80ms ease;
+}
+
+.page-wrap .form-field:hover:not(:disabled):not([readonly]) {
+  background: rgba(120, 170, 255, 0.18);
+  border-color: rgba(120, 170, 255, 0.75);
+}
+
+.page-wrap .form-field:focus {
+  background: rgba(120, 170, 255, 0.22);
+  border-color: #4a8fff;
+  box-shadow: 0 0 0 2px rgba(74, 143, 255, 0.35);
+}
+
+.page-wrap .form-field[readonly],
+.page-wrap .form-field:disabled {
+  background: rgba(200, 200, 200, 0.12);
+  border-color: rgba(150, 150, 150, 0.35);
+  cursor: not-allowed;
+}
+
+.page-wrap .form-field-text,
+.page-wrap .form-field-combo {
+  resize: none;
+  line-height: 1.15;
+  overflow: hidden;
+}
+
+/* Checkbox/radio: native widget sized to the field box. Browsers cap the
+   visual size of these controls; the bounding box stays accurate for click
+   targets even when the glyph is smaller. */
+.page-wrap .form-field-checkbox,
+.page-wrap .form-field-radio {
+  cursor: pointer;
+  padding: 0;
+}
+
+.page-wrap .form-field-select {
+  background-clip: padding-box;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* Print: keep the typed/selected values visible but strip the interactive
+   chrome so the printed page reads as plain text. */
+@media print {
+  .page-wrap .form-overlay {
+    opacity: 1 !important;
+  }
+  .page-wrap .form-field {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #000 !important;
+  }
+}
+
 /* ---------- Redaction overlay ---------- */
 .page-wrap .redaction-overlay {
   position: absolute;

@@ -15,6 +15,7 @@ import { SanitizeModal } from './components/SanitizeModal'
 import { OrganizeMode } from './components/OrganizeMode'
 import { findRedactionsInDoc, PATTERN_PRESETS } from './redact-find'
 import { stampSignatures } from './sign'
+import { countFormFields } from './form'
 import type { RecentFile } from '../../preload/index'
 
 export function App() {
@@ -31,6 +32,7 @@ export function App() {
     redactions,
     redactMode,
     ocrResults,
+    formValues,
     compareDoc,
     compareFileName,
     compareMode,
@@ -49,6 +51,8 @@ export function App() {
     clearRedactions,
     addRedactions,
     clearOcrResults,
+    setFormFieldCount,
+    clearFormValues,
     setCompareDoc,
     setCompareMode,
     enterOrganize,
@@ -177,8 +181,31 @@ export function App() {
         fileSize: size
       })
       window.akv.recentList().then(setRecentFiles)
+      // Background-detect AcroForm widgets. Walks pages in parallel so even
+      // multi-hundred-page documents return in well under a second; failures
+      // per page are swallowed so a single bad annotation can't break load.
+      detectFormFields(document).catch((err) =>
+        console.warn('[load] form detect failed:', err)
+      )
     } catch (err) {
       flash(`Failed to load PDF: ${(err as Error).message}`)
+    }
+  }
+
+  const detectFormFields = async (document: PDFDocumentProxy) => {
+    const pages = await Promise.all(
+      Array.from({ length: document.numPages }, (_, i) => document.getPage(i + 1))
+    )
+    const counts = await Promise.all(
+      pages.map((p) => countFormFields(p).catch(() => 0))
+    )
+    const total = counts.reduce((a, b) => a + b, 0)
+    if (total > 0) {
+      setFormFieldCount(total)
+      flash(
+        `This PDF has ${total} fillable field${total === 1 ? '' : 's'} — ` +
+          'fill them and use Save Copy to write your answers.'
+      )
     }
   }
 
@@ -186,9 +213,17 @@ export function App() {
     if (!bytes || !fileName) return
     try {
       const ocrList = Object.values(ocrResults)
-      const stamped = await stampSignatures(bytes, signatures, redactions, ocrList)
+      const hasFormEdits = Object.keys(formValues).length > 0
+      const stamped = await stampSignatures(
+        bytes,
+        signatures,
+        redactions,
+        ocrList,
+        formValues
+      )
       const base = fileName.replace(/\.pdf$/i, '')
       const tags: string[] = []
+      if (hasFormEdits) tags.push('filled')
       if (redactions.length) tags.push('redacted')
       if (signatures.length) tags.push('signed')
       if (ocrList.length) tags.push('ocr')
@@ -204,6 +239,7 @@ export function App() {
         if (signatures.length) clearSignatures()
         if (redactions.length) clearRedactions()
         if (ocrList.length) clearOcrResults()
+        if (hasFormEdits) clearFormValues()
       }
     } catch (err) {
       flash(`Save failed: ${(err as Error).message}`)
@@ -214,9 +250,11 @@ export function App() {
     signatures,
     redactions,
     ocrResults,
+    formValues,
     clearSignatures,
     clearRedactions,
-    clearOcrResults
+    clearOcrResults,
+    clearFormValues
   ])
 
   const handlePrint = useCallback(async () => {
