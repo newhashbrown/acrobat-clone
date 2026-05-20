@@ -28,6 +28,11 @@ copy(
 )
 
 const coreDir = path.dirname(require.resolve('tesseract.js-core/package.json'))
+// tesseract.js v7's worker probes for SIMD + relaxed-SIMD at runtime and picks
+// one of six variants accordingly. Modern Chromium / Electron 25+ supports
+// relaxed-SIMD, so we MUST ship the relaxedsimd builds — without them the
+// worker's `importScripts(corePathImportFile)` 404s and createWorker hangs
+// silently, leaving the Recognize button looking dead.
 const coreCandidates = [
   'tesseract-core.wasm.js',
   'tesseract-core.wasm',
@@ -36,7 +41,11 @@ const coreCandidates = [
   'tesseract-core-lstm.wasm.js',
   'tesseract-core-lstm.wasm',
   'tesseract-core-simd-lstm.wasm.js',
-  'tesseract-core-simd-lstm.wasm'
+  'tesseract-core-simd-lstm.wasm',
+  'tesseract-core-relaxedsimd.wasm.js',
+  'tesseract-core-relaxedsimd.wasm',
+  'tesseract-core-relaxedsimd-lstm.wasm.js',
+  'tesseract-core-relaxedsimd-lstm.wasm'
 ]
 for (const name of coreCandidates) {
   const src = path.join(coreDir, name)
