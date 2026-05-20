@@ -1,5 +1,10 @@
 import {
   PDFDocument,
+  PDFCheckBox,
+  PDFDropdown,
+  PDFOptionList,
+  PDFRadioGroup,
+  PDFTextField,
   StandardFonts,
   rgb,
   pushGraphicsState,
@@ -13,7 +18,7 @@ import {
   showText,
   PDFHexString
 } from 'pdf-lib'
-import type { PlacedSignature, Redaction } from './store'
+import type { FormValue, PlacedSignature, Redaction } from './store'
 import type { OcrPageResult, OcrWord } from './ocr'
 
 // Stamp placed signatures, redactions, and an invisible OCR text layer into a
@@ -27,15 +32,24 @@ export async function stampSignatures(
   originalBytes: ArrayBuffer,
   signatures: PlacedSignature[],
   redactions: Redaction[] = [],
-  ocrResults: OcrPageResult[] = []
+  ocrResults: OcrPageResult[] = [],
+  formValues: Record<string, FormValue> = {},
+  flattenForm = false
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.load(originalBytes, { ignoreEncryption: true })
+  const hasFormWork = Object.keys(formValues).length > 0 || flattenForm
   if (
     signatures.length === 0 &&
     redactions.length === 0 &&
-    ocrResults.length === 0
+    ocrResults.length === 0 &&
+    !hasFormWork
   ) {
     return await pdf.save()
+  }
+
+  // --- Form values first so subsequent stamps land on top of any filled UI ---
+  if (hasFormWork) {
+    applyFormValues(pdf, formValues, flattenForm)
   }
 
   // --- OCR text layer (invisible, searchable) ---
@@ -101,6 +115,59 @@ export async function stampSignatures(
   }
 
   return await pdf.save()
+}
+
+// Apply user-supplied AcroForm values to the loaded PDF. Field type drives
+// the pdf-lib call: text fields take strings, check boxes take booleans,
+// radio groups + dropdowns + option lists take an option name. Unknown names
+// are silently skipped — the document may have changed since the user opened
+// it, or the value could reference a stale field id. Option lists and
+// dropdowns are both Choice fields; treat them identically here. Calling
+// flatten() at the end is one-way: fields become baked-in static content.
+function applyFormValues(
+  pdf: PDFDocument,
+  values: Record<string, FormValue>,
+  flatten: boolean
+) {
+  let form
+  try {
+    form = pdf.getForm()
+  } catch {
+    // No /AcroForm dictionary — nothing to fill.
+    return
+  }
+  const fieldsByName = new Map(form.getFields().map((f) => [f.getName(), f]))
+
+  for (const [name, value] of Object.entries(values)) {
+    const field = fieldsByName.get(name)
+    if (!field) continue
+    try {
+      if (field instanceof PDFTextField) {
+        if (typeof value === 'string') field.setText(value)
+      } else if (field instanceof PDFCheckBox) {
+        if (typeof value === 'boolean') {
+          if (value) field.check()
+          else field.uncheck()
+        }
+      } else if (field instanceof PDFRadioGroup) {
+        if (typeof value === 'string' && value.length > 0) field.select(value)
+      } else if (field instanceof PDFDropdown || field instanceof PDFOptionList) {
+        if (typeof value === 'string' && value.length > 0) field.select(value)
+      }
+    } catch (err) {
+      // Individual field write failure (e.g. invalid radio option) shouldn't
+      // abort the whole save. Log and move on.
+      console.warn(`[form-fill] failed to set "${name}":`, err)
+    }
+  }
+
+  if (flatten) {
+    try {
+      form.flatten()
+    } catch (err) {
+      console.warn('[form-fill] flatten failed:', err)
+    }
+  }
 }
 
 function buildInvisibleTextOps(

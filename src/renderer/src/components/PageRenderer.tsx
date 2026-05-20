@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { pdfjsLib, type PDFDocumentProxy } from '../pdf'
 import { useViewer, type PlacedSignature, type Redaction } from '../store'
+import { extractFormFields, type FormField } from '../form'
 
 interface Props {
   doc: PDFDocumentProxy
@@ -46,6 +47,14 @@ export function PageRenderer({
   const addRedactions = useViewer((s) => s.addRedactions)
   const removeRedaction = useViewer((s) => s.removeRedaction)
   const [drag, setDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
+  const [formFields, setFormFields] = useState<FormField[]>([])
+  // Form value subscriptions happen per-input inside FormFieldInput so a
+  // single keystroke re-renders only the changed widget — not every page.
+  // Form inputs are disabled while the user is placing a signature or marking
+  // redactions — those modes need clicks on the page to drop the artifact, and
+  // an interactive input would steal the event before the page click handler
+  // can run.
+  const formInteractive = !signaturePlacement && !redactMode
 
   useEffect(() => {
     let cancelled = false
@@ -102,6 +111,18 @@ export function PageRenderer({
         const textContent = await page.getTextContent()
         if (cancelled) return
         renderTextLayer(textContent, textLayer, viewport)
+      }
+
+      // Form fields — extracted at the same scale so positions match the
+      // current zoom. Cheap on most documents (annotation count is small);
+      // skipped on cancel like the rest of the render pipeline.
+      try {
+        const fields = await extractFormFields(page, scale)
+        if (cancelled) return
+        setFormFields(fields)
+      } catch (err) {
+        console.warn(`[page ${pageNumber}] form extract failed:`, err)
+        setFormFields([])
       }
 
       setDims({
@@ -230,6 +251,16 @@ export function PageRenderer({
     >
       <canvas ref={canvasRef} />
       <div ref={textLayerRef} className="text-layer" />
+      {dims && formFields.length > 0 && (
+        <div
+          className={'form-overlay' + (formInteractive ? '' : ' inactive')}
+          aria-hidden={!formInteractive}
+        >
+          {formFields.map((f) => (
+            <FormFieldInput key={f.id} field={f} disabled={!formInteractive} />
+          ))}
+        </div>
+      )}
       <div className="signature-overlay">
         {dims &&
           signatures.map((sig) => (
@@ -330,6 +361,141 @@ function RedactionMark({
         ×
       </div>
     </div>
+  )
+}
+
+// Renders a single AcroForm widget as an absolutely-positioned HTML input.
+// Value resolution: store value wins; field's defaultValue is the fallback.
+// Stops pointer events from propagating up so signature/redaction drags don't
+// initiate on top of a field — the wrapping `.form-overlay` is otherwise
+// `pointer-events: none` so empty space between fields still routes clicks
+// through to the page.
+function FormFieldInput({
+  field,
+  disabled
+}: {
+  field: FormField
+  disabled: boolean
+}) {
+  // Per-field Zustand selector: only this widget re-renders when its value
+  // changes. Radios in the same group share a name, so they all subscribe to
+  // the same slot and update together — that's the desired behavior.
+  const storeValue = useViewer((s) => s.formValues[field.name])
+  const onChange = useViewer((s) => s.setFormValue)
+  const style: React.CSSProperties = {
+    left: field.cssLeft,
+    top: field.cssTop,
+    width: field.cssWidth,
+    height: field.cssHeight
+  }
+  const stopProp = (e: React.PointerEvent | React.MouseEvent) => e.stopPropagation()
+  const isReadOnly = field.readOnly || disabled
+
+  if (field.kind === 'text') {
+    const value =
+      typeof storeValue === 'string' ? storeValue : (storeValue == null ? field.defaultValue : '')
+    const common = {
+      className: 'form-field form-field-text',
+      style,
+      value,
+      readOnly: isReadOnly,
+      maxLength: field.maxLength,
+      onChange: (
+        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+      ) => onChange(field.name, e.target.value),
+      onPointerDown: stopProp,
+      onClick: stopProp
+    }
+    return field.multiline ? <textarea {...common} /> : <input type="text" {...common} />
+  }
+
+  if (field.kind === 'checkbox') {
+    const checked =
+      typeof storeValue === 'boolean' ? storeValue : field.defaultChecked
+    return (
+      <input
+        type="checkbox"
+        className="form-field form-field-checkbox"
+        style={style}
+        checked={checked}
+        disabled={isReadOnly}
+        onChange={(e) => onChange(field.name, e.target.checked)}
+        onPointerDown={stopProp}
+        onClick={stopProp}
+      />
+    )
+  }
+
+  if (field.kind === 'radio') {
+    // Store value is the selected option's export value (or undefined). A
+    // widget is checked when the store reports its own exportValue.
+    const selected =
+      typeof storeValue === 'string'
+        ? storeValue === field.exportValue
+        : field.defaultChecked
+    return (
+      <input
+        type="radio"
+        className="form-field form-field-radio"
+        style={style}
+        name={field.name}
+        checked={selected}
+        disabled={isReadOnly}
+        onChange={() => onChange(field.name, field.exportValue)}
+        onPointerDown={stopProp}
+        onClick={stopProp}
+      />
+    )
+  }
+
+  // dropdown: combo → editable input + datalist; non-combo → plain select.
+  const dropdownValue =
+    typeof storeValue === 'string' ? storeValue : field.defaultValue
+  if (field.combo) {
+    const listId = `dl-${field.id}`
+    return (
+      <>
+        <input
+          type="text"
+          className="form-field form-field-combo"
+          style={style}
+          list={listId}
+          value={dropdownValue}
+          readOnly={isReadOnly}
+          onChange={(e) => onChange(field.name, e.target.value)}
+          onPointerDown={stopProp}
+          onClick={stopProp}
+        />
+        <datalist id={listId}>
+          {field.options.map((o) => (
+            <option key={o.exportValue} value={o.exportValue}>
+              {o.displayValue}
+            </option>
+          ))}
+        </datalist>
+      </>
+    )
+  }
+  return (
+    <select
+      className="form-field form-field-select"
+      style={style}
+      value={dropdownValue}
+      disabled={isReadOnly}
+      onChange={(e) => onChange(field.name, e.target.value)}
+      onPointerDown={stopProp}
+      onClick={stopProp}
+    >
+      {/* Allow a blank/unset selection so users can clear a default. */}
+      {!field.options.some((o) => o.exportValue === '') && (
+        <option value="">— Select —</option>
+      )}
+      {field.options.map((o) => (
+        <option key={o.exportValue} value={o.exportValue}>
+          {o.displayValue}
+        </option>
+      ))}
+    </select>
   )
 }
 
