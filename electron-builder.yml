@@ -1,5 +1,11 @@
 appId: com.gagan.acrobatclone
 productName: Acrobat Clone
+# Use a literal slug for output filenames so GitHub release uploads don't
+# get silently renamed (spaces in productName become dots in the GitHub
+# asset filename, which then mismatches electron-updater's latest.yml).
+# The user-facing app name (Start menu shortcut, app title) still uses
+# productName via shortcutName below.
+artifactName: acrobat-clone-${version}-${arch}.${ext}
 directories:
   output: release
   buildResources: build
@@ -11,12 +17,11 @@ win:
   target:
     - target: nsis
       arch: [x64]
-  artifactName: ${productName}-${version}-${arch}.${ext}
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
-  artifactName: ${productName}-${version}-Setup.${ext}
+  artifactName: acrobat-clone-${version}-Setup.${ext}
   shortcutName: ${productName}
 mac:
   target:
