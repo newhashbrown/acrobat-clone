@@ -1,0 +1,5 @@
+# Auto-request review from listed owners when matched files change in a PR.
+# Last-pattern-matched wins.
+# Docs: https://docs.github.com/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+
+* @newhashbrown
