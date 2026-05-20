@@ -4,6 +4,46 @@ A local-first, open-source PDF viewer and editor for Windows / macOS / Linux. Bu
 
 > Status: experimental. Useful for everyday viewing, signing, redacting, merging/splitting, OCR, comparing, sanitizing, and reorganizing PDFs. Editing existing PDF text and full-strength true-redaction are explicit non-goals for now (see [Limitations](#limitations)).
 
+## Install
+
+Prebuilt installers for the latest tagged release live at **[github.com/newhashbrown/acrobat-clone/releases/latest](https://github.com/newhashbrown/acrobat-clone/releases/latest)**. If that page is empty, no release has been cut yet — [build from source](#or-build-from-source) for now.
+
+### Windows
+
+1. Download `Acrobat Clone-<version>-Setup.exe` from the releases page.
+2. Run it. Windows SmartScreen will warn that the publisher is unverified — the binary isn't code-signed yet. Click **More info → Run anyway**.
+3. The NSIS installer is non-silent: pick the install directory and whether to install for the current user or all users.
+
+Launch from the Start menu, or directly from `%LOCALAPPDATA%\Programs\Acrobat Clone\Acrobat Clone.exe` for per-user installs.
+
+### macOS
+
+1. Download the `.dmg` matching your architecture:
+   - Apple Silicon (M1 and later): `Acrobat Clone-<version>-arm64.dmg`
+   - Intel: `Acrobat Clone-<version>-x64.dmg`
+2. Open the DMG and drag the app to `/Applications`.
+3. First launch: Gatekeeper will block the unsigned/unnotarized binary. Right-click the app in Finder → **Open** → confirm. After the first launch, regular double-click works.
+
+Code signing and notarization are on the roadmap.
+
+### Linux
+
+1. Download `Acrobat Clone-<version>-x64.AppImage`.
+2. Make it executable:
+   ```sh
+   chmod +x "Acrobat Clone-<version>-x64.AppImage"
+   ```
+3. Run it:
+   ```sh
+   ./"Acrobat Clone-<version>-x64.AppImage"
+   ```
+
+The AppImage is fully portable — no system install step. To integrate with your application menu, either use [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher) or move the file somewhere stable and create a `.desktop` entry by hand.
+
+### Or build from source
+
+See [Develop](#develop) and [Build](#build) below. Five-minute setup on Windows, macOS, or Linux given a recent Node 20 toolchain.
+
 ## Features
 
 ### Viewing
